@@ -7,11 +7,11 @@ import React, {
   useReducer,
   useState
 } from 'react';
-
 import {
-  ApiParams,
-  GoogleMapsApiLoader
-} from '../libraries/google-maps-api-loader';
+  APIOptions,
+  importLibrary as importGoogleMapsLibrary,
+  setOptions as setGoogleMapsOptions
+} from '@googlemaps/js-api-loader';
 import {APILoadingStatus} from '../libraries/api-loading-status';
 import {VERSION} from '../version';
 
@@ -30,10 +30,12 @@ export interface APIProviderContextValue {
   internalUsageAttributionIds: string[] | null;
 }
 
+const DEFAULT_VERSION = 'weekly';
 const DEFAULT_SOLUTION_CHANNEL = 'GMP_visgl_rgmlibrary_v1_default';
 const DEFAULT_INTERNAL_USAGE_ATTRIBUTION_IDS = [
   `gmp_visgl_reactgooglemaps_v${VERSION}`
 ];
+const DEFAULT_AUTH_REFERRER_POLICY = 'origin';
 
 export const APIProviderContext =
   React.createContext<APIProviderContextValue | null>(null);
@@ -130,19 +132,22 @@ function useMapInstances() {
  * local hook to handle the loading of the maps API, returns the current loading status
  * @param props
  */
-function useGoogleMapsApiLoader(props: APIProviderProps) {
-  const {
-    onLoad,
-    onError,
-    apiKey,
-    version,
-    libraries = [],
-    ...otherApiParams
-  } = props;
-
+function useGoogleMapsApiLoader({
+  onLoad,
+  onError,
+  apiKey,
+  region,
+  language,
+  channel,
+  solutionChannel,
+  libraries = [],
+  version = DEFAULT_VERSION,
+  authReferrerPolicy = DEFAULT_AUTH_REFERRER_POLICY
+}: Omit<APIProviderProps, 'children'>) {
   const [status, setStatus] = useState<APILoadingStatus>(
-    GoogleMapsApiLoader.loadingStatus
+    APILoadingStatus.NOT_LOADED
   );
+
   const [loadedLibraries, addLoadedLibrary] = useReducer(
     (
       loadedLibraries: LoadedLibraries,
@@ -155,26 +160,13 @@ function useGoogleMapsApiLoader(props: APIProviderProps) {
     {}
   );
 
-  const librariesString = useMemo(() => libraries?.join(','), [libraries]);
-  const serializedParams = useMemo(
-    () => JSON.stringify({apiKey, version, ...otherApiParams}),
-    [apiKey, version, otherApiParams]
-  );
-
   const importLibrary: typeof google.maps.importLibrary = useCallback(
     async (name: string) => {
       if (loadedLibraries[name]) {
         return loadedLibraries[name];
       }
 
-      if (!google?.maps?.importLibrary) {
-        throw new Error(
-          '[api-provider-internal] importLibrary was called before ' +
-            'google.maps.importLibrary was defined.'
-        );
-      }
-
-      const res = await window.google.maps.importLibrary(name);
+      const res = await importGoogleMapsLibrary(name);
       addLoadedLibrary({name, value: res});
 
       return res;
@@ -182,49 +174,70 @@ function useGoogleMapsApiLoader(props: APIProviderProps) {
     [loadedLibraries]
   );
 
-  useEffect(
-    () => {
-      (async () => {
-        try {
-          const params: ApiParams = {key: apiKey, ...otherApiParams};
-          if (version) params.v = version;
-          if (librariesString?.length > 0) params.libraries = librariesString;
+  // Set options and load API only once on mount
+  useEffect(() => {
+    const options: APIOptions = {
+      key: apiKey,
+      v: version,
+      region,
+      language,
+      authReferrerPolicy,
+      libraries,
+      channel: channel !== undefined ? String(channel) : undefined,
+      solutionChannel:
+        solutionChannel === ''
+          ? undefined
+          : solutionChannel || DEFAULT_SOLUTION_CHANNEL
+    };
 
-          if (
-            params.channel === undefined ||
-            params.channel < 0 ||
-            params.channel > 999
-          )
-            delete params.channel;
+    setGoogleMapsOptions(options);
 
-          if (params.solutionChannel === undefined)
-            params.solutionChannel = DEFAULT_SOLUTION_CHANNEL;
-          else if (params.solutionChannel === '') delete params.solutionChannel;
+    let cancelled = false;
 
-          await GoogleMapsApiLoader.load(params, status => setStatus(status));
+    (async () => {
+      try {
+        setStatus('LOADING');
 
-          for (const name of ['core', 'maps', ...libraries]) {
+        for (const name of ['core', 'maps']) {
+          await importGoogleMapsLibrary(name);
+        }
+
+        if (cancelled) return;
+
+        if (libraries) {
+          for (const name of libraries) {
             await importLibrary(name);
           }
-
-          if (onLoad) {
-            onLoad();
-          }
-        } catch (error) {
-          if (onError) {
-            onError(error);
-          } else {
-            console.error(
-              '<ApiProvider> failed to load the Google Maps JavaScript API',
-              error
-            );
-          }
         }
-      })();
-    },
+
+        if (cancelled) return;
+
+        setStatus('LOADED');
+
+        if (onLoad) {
+          onLoad();
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        setStatus('FAILED');
+
+        if (onError) {
+          onError(error);
+        } else {
+          console.error(
+            '<ApiProvider> failed to load the Google Maps JavaScript API',
+            error
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [apiKey, librariesString, serializedParams]
-  );
+  }, []);
 
   return {
     status,

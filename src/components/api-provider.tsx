@@ -144,6 +144,7 @@ function useGoogleMapsApiLoader({
   version = DEFAULT_VERSION,
   authReferrerPolicy = DEFAULT_AUTH_REFERRER_POLICY
 }: Omit<APIProviderProps, 'children'>) {
+  const [prevOptions, setPrevOptions] = useState<APIOptions | null>(null);
   const [status, setStatus] = useState<APILoadingStatus>(
     APILoadingStatus.NOT_LOADED
   );
@@ -174,9 +175,8 @@ function useGoogleMapsApiLoader({
     [loadedLibraries]
   );
 
-  // Set options and load API only once on mount
-  useEffect(() => {
-    const options: APIOptions = {
+  const options: APIOptions = useMemo(
+    () => ({
       key: apiKey,
       v: version,
       region,
@@ -188,15 +188,33 @@ function useGoogleMapsApiLoader({
         solutionChannel === ''
           ? undefined
           : solutionChannel || DEFAULT_SOLUTION_CHANNEL
-    };
+    }),
+    [
+      apiKey,
+      version,
+      region,
+      language,
+      authReferrerPolicy,
+      libraries,
+      channel,
+      solutionChannel
+    ]
+  );
 
-    setGoogleMapsOptions(options);
+  useEffect(() => {
+    const optionsChanged =
+      JSON.stringify(prevOptions) !== JSON.stringify(options);
+    if (optionsChanged) {
+      setGoogleMapsOptions(options);
+      setPrevOptions(options);
+    }
+  }, [options, prevOptions]);
 
+  useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
-        setStatus('LOADING');
+        setStatus(APILoadingStatus.LOADING);
 
         for (const name of ['core', 'maps']) {
           await importGoogleMapsLibrary(name);
@@ -212,7 +230,7 @@ function useGoogleMapsApiLoader({
 
         if (cancelled) return;
 
-        setStatus('LOADED');
+        setStatus(APILoadingStatus.LOADED);
 
         if (onLoad) {
           onLoad();
@@ -220,7 +238,7 @@ function useGoogleMapsApiLoader({
       } catch (error) {
         if (cancelled) return;
 
-        setStatus('FAILED');
+        setStatus(APILoadingStatus.FAILED);
 
         if (onError) {
           onError(error);

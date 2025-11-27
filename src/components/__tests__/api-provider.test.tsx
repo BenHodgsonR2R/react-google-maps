@@ -40,17 +40,19 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-test('passes parameters to setOptions', () => {
-  render(
-    <APIProvider
-      apiKey={'apikey'}
-      libraries={['places', 'marker']}
-      version={'beta'}
-      language={'en'}
-      region={'us'}
-      solutionChannel={'test-channel_value'}
-      authReferrerPolicy={'origin'}></APIProvider>
-  );
+test('passes parameters to setOptions', async () => {
+  await act(async () => {
+    render(
+      <APIProvider
+        apiKey={'apikey'}
+        libraries={['places', 'marker']}
+        version={'beta'}
+        language={'en'}
+        region={'us'}
+        solutionChannel={'test-channel_value'}
+        authReferrerPolicy={'origin'}></APIProvider>
+    );
+  });
 
   expect(setOptionsSpy.mock.lastCall[0]).toMatchObject({
     key: 'apikey',
@@ -63,22 +65,28 @@ test('passes parameters to setOptions', () => {
   });
 });
 
-test('passes parameters to setOptions', () => {
-  render(<APIProvider apiKey={'apikey'} version={'version'}></APIProvider>);
+test('passes parameters to setOptions', async () => {
+  await act(async () => {
+    render(<APIProvider apiKey={'apikey'} version={'version'}></APIProvider>);
+  });
 
   const actual = setOptionsSpy.mock.lastCall[0];
   expect(actual).toMatchObject({key: 'apikey', v: 'version'});
 });
 
-test('uses default solutionChannel', () => {
-  render(<APIProvider apiKey={'apikey'}></APIProvider>);
+test('uses default solutionChannel', async () => {
+  await act(async () => {
+    render(<APIProvider apiKey={'apikey'}></APIProvider>);
+  });
 
   const actual = setOptionsSpy.mock.lastCall[0] as Record<string, unknown>;
   expect(actual.solutionChannel).toBe('GMP_visgl_rgmlibrary_v1_default');
 });
 
-test("doesn't set solutionChannel when specified as empty string", () => {
-  render(<APIProvider apiKey={'apikey'} solutionChannel={''}></APIProvider>);
+test("doesn't set solutionChannel when specified as empty string", async () => {
+  await act(async () => {
+    render(<APIProvider apiKey={'apikey'} solutionChannel={''}></APIProvider>);
+  });
 
   const actual = setOptionsSpy.mock.lastCall[0] as Record<string, unknown>;
   expect(actual.solutionChannel).toBeUndefined();
@@ -129,11 +137,13 @@ test('provides context values', async () => {
 });
 
 test('map instance management: add, access and remove', async () => {
-  render(
-    <APIProvider apiKey={'apikey'}>
-      <ContextSpyComponent />
-    </APIProvider>
-  );
+  await act(async () => {
+    render(
+      <APIProvider apiKey={'apikey'}>
+        <ContextSpyComponent />
+      </APIProvider>
+    );
+  });
 
   const contextSpy = ContextSpyComponent.spy;
 
@@ -170,7 +180,9 @@ test('calls onError when loading the Google Maps JavaScript API fails', async ()
   const loader = await import('@googlemaps/js-api-loader');
   (loader.importLibrary as jest.Mock).mockRejectedValueOnce(mockError);
 
-  render(<APIProvider apiKey={'apikey'} onError={onErrorMock}></APIProvider>);
+  await act(async () => {
+    render(<APIProvider apiKey={'apikey'} onError={onErrorMock}></APIProvider>);
+  });
 
   await waitFor(() => {
     expect(onErrorMock).toHaveBeenCalledWith(mockError);
@@ -178,12 +190,14 @@ test('calls onError when loading the Google Maps JavaScript API fails', async ()
 });
 
 describe('internalUsageAttributionIds', () => {
-  test('provides default attribution IDs in context', () => {
-    render(
-      <APIProvider apiKey={'apikey'}>
-        <ContextSpyComponent />
-      </APIProvider>
-    );
+  test('provides default attribution IDs in context', async () => {
+    await act(async () => {
+      render(
+        <APIProvider apiKey={'apikey'}>
+          <ContextSpyComponent />
+        </APIProvider>
+      );
+    });
 
     const contextSpy = ContextSpyComponent.spy;
     const actualContext: APIProviderContextValue = contextSpy.mock.lastCall[0];
@@ -193,12 +207,14 @@ describe('internalUsageAttributionIds', () => {
     ]);
   });
 
-  test('sets internalUsageAttributionIds to null when disableUsageAttribution is true', () => {
-    render(
-      <APIProvider apiKey={'apikey'} disableUsageAttribution>
-        <ContextSpyComponent />
-      </APIProvider>
-    );
+  test('sets internalUsageAttributionIds to null when disableUsageAttribution is true', async () => {
+    await act(async () => {
+      render(
+        <APIProvider apiKey={'apikey'} disableUsageAttribution>
+          <ContextSpyComponent />
+        </APIProvider>
+      );
+    });
 
     const contextSpy = ContextSpyComponent.spy;
     const actualContext: APIProviderContextValue = contextSpy.mock.lastCall[0];

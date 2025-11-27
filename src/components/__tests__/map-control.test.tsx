@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 
 import React, {FunctionComponent, PropsWithChildren} from 'react';
 import {initialize} from '@googlemaps/jest-mocks';
-import {cleanup, render} from '@testing-library/react';
+import {cleanup, render, waitFor} from '@testing-library/react';
 
 import {APIProvider} from '../api-provider';
 import {Map} from '../map';
@@ -39,7 +39,7 @@ test('control is added to the map', async () => {
   const map = await waitForMockInstance(google.maps.Map);
   const controlsArray = map.controls[ControlPosition.BOTTOM_CENTER];
 
-  expect(controlsArray.push).toHaveBeenCalled();
+  await waitFor(() => expect(controlsArray.push).toHaveBeenCalled());
 
   const [controlEl] = (controlsArray.push as jest.Mock).mock.calls[0];
   expect(controlEl).toHaveTextContent('control button');

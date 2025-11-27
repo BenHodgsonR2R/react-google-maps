@@ -144,7 +144,6 @@ function useGoogleMapsApiLoader({
   version = DEFAULT_VERSION,
   authReferrerPolicy = DEFAULT_AUTH_REFERRER_POLICY
 }: Omit<APIProviderProps, 'children'>) {
-  const [prevOptions, setPrevOptions] = useState<APIOptions | null>(null);
   const [status, setStatus] = useState<APILoadingStatus>(
     APILoadingStatus.NOT_LOADED
   );
@@ -161,6 +160,34 @@ function useGoogleMapsApiLoader({
     {}
   );
 
+  const options: APIOptions = useMemo(
+    () => ({
+      key: apiKey,
+      v: version,
+      region,
+      language,
+      authReferrerPolicy,
+      libraries,
+      channel: channel !== undefined ? String(channel) : undefined,
+      solutionChannel:
+        solutionChannel === ''
+          ? undefined
+          : solutionChannel || DEFAULT_SOLUTION_CHANNEL
+    }),
+    [
+      apiKey,
+      version,
+      region,
+      language,
+      authReferrerPolicy,
+      libraries,
+      channel,
+      solutionChannel
+    ]
+  );
+
+  const serializedOptions = useMemo(() => JSON.stringify(options), [options]);
+
   const importLibrary: typeof google.maps.importLibrary = useCallback(
     async (name: string) => {
       if (loadedLibraries[name]) {
@@ -176,37 +203,9 @@ function useGoogleMapsApiLoader({
   );
 
   useEffect(() => {
-    const options: APIOptions = {
-      key: apiKey,
-      v: version,
-      region,
-      language,
-      authReferrerPolicy,
-      libraries,
-      channel: channel !== undefined ? String(channel) : undefined,
-      solutionChannel:
-        solutionChannel === ''
-          ? undefined
-          : solutionChannel || DEFAULT_SOLUTION_CHANNEL
-    };
-
-    const optionsChanged =
-      JSON.stringify(prevOptions) !== JSON.stringify(options);
-    if (optionsChanged) {
-      setGoogleMapsOptions(options);
-      setPrevOptions(options);
-    }
-  }, [
-    apiKey,
-    version,
-    region,
-    language,
-    authReferrerPolicy,
-    libraries,
-    channel,
-    solutionChannel,
-    prevOptions
-  ]);
+    setGoogleMapsOptions(options);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serializedOptions]);
 
   useEffect(() => {
     let cancelled = false;

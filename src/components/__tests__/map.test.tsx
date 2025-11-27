@@ -7,8 +7,6 @@ import {Map as GoogleMap, MapProps} from '../map';
 import {APIProviderContext, APIProviderContextValue} from '../api-provider';
 import {APILoadingStatus} from '../../libraries/api-loading-status';
 
-jest.mock('../../libraries/google-maps-api-loader');
-
 let wrapper: FunctionComponent<PropsWithChildren>;
 let mockContextValue: jest.MockedObject<APIProviderContextValue>;
 let createMapSpy: jest.Mock<

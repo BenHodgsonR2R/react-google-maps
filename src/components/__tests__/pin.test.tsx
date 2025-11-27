@@ -9,8 +9,6 @@ import {Pin, PinProps} from '../pin';
 
 import {waitForSpy} from './__utils__/wait-for-spy';
 
-jest.mock('../../libraries/google-maps-api-loader');
-
 let wrapper: FunctionComponent<PropsWithChildren>;
 
 let createMarkerSpy: jest.Mock<

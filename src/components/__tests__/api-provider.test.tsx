@@ -1,23 +1,18 @@
 import React, {useContext} from 'react';
-import {act, render, screen} from '@testing-library/react';
+import {act, render, screen, waitFor} from '@testing-library/react';
 import {initialize} from '@googlemaps/jest-mocks';
 import '@testing-library/jest-dom';
-
-// FIXME: this should no longer be needed with the next version of @googlemaps/jest-mocks
-import {importLibraryMock} from '../../libraries/__mocks__/lib/import-library-mock';
-
 import {VERSION} from '../../version';
 import {
   APIProvider,
   APIProviderContext,
   APIProviderContextValue
 } from '../api-provider';
-import {ApiParams} from '../../libraries/google-maps-api-loader';
 import {useApiIsLoaded} from '../../hooks/use-api-is-loaded';
 import {APILoadingStatus} from '../../libraries/api-loading-status';
 
-const apiLoadSpy = jest.fn();
-const apiUnloadSpy = jest.fn();
+const setOptionsSpy = jest.fn();
+const importLibrarySpy = jest.fn();
 
 const ContextSpyComponent = () => {
   const context = useContext(APIProviderContext);
@@ -27,39 +22,17 @@ const ContextSpyComponent = () => {
 };
 ContextSpyComponent.spy = jest.fn();
 
-let triggerMapsApiLoaded: () => void;
-let triggerLoadingFailed: () => void;
-
-jest.mock('../../libraries/google-maps-api-loader', () => {
-  class GoogleMapsApiLoader {
-    static async load(
-      params: ApiParams,
-      onLoadingStatusChange: (s: APILoadingStatus) => void
-    ): Promise<void> {
-      apiLoadSpy(params);
-      onLoadingStatusChange(APILoadingStatus.LOADING);
-
-      google.maps.importLibrary = importLibraryMock;
-
-      return new Promise((resolve, reject) => {
-        triggerLoadingFailed = () => {
-          reject();
-          onLoadingStatusChange(APILoadingStatus.FAILED);
-        };
-
-        triggerMapsApiLoaded = () => {
-          resolve();
-          onLoadingStatusChange(APILoadingStatus.LOADED);
-        };
-      });
-    }
-
-    static unload() {
-      apiUnloadSpy();
-    }
-  }
-
-  return {__esModule: true, GoogleMapsApiLoader};
+jest.mock('@googlemaps/js-api-loader', () => {
+  return {
+    setOptions: (options: unknown) => {
+      setOptionsSpy(options);
+    },
+    importLibrary: jest.fn(async (name: string) => {
+      importLibrarySpy(name);
+      // Return empty object - the @googlemaps/jest-mocks will handle setting up google.maps
+      return {};
+    })
+  };
 });
 
 beforeEach(() => {
@@ -67,7 +40,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-test('passes parameters to GoogleMapsAPILoader', () => {
+test('passes parameters to setOptions', () => {
   render(
     <APIProvider
       apiKey={'apikey'}
@@ -79,9 +52,9 @@ test('passes parameters to GoogleMapsAPILoader', () => {
       authReferrerPolicy={'origin'}></APIProvider>
   );
 
-  expect(apiLoadSpy.mock.lastCall[0]).toMatchObject({
+  expect(setOptionsSpy.mock.lastCall[0]).toMatchObject({
     key: 'apikey',
-    libraries: 'places,marker',
+    libraries: ['places', 'marker'],
     v: 'beta',
     language: 'en',
     region: 'us',
@@ -90,31 +63,33 @@ test('passes parameters to GoogleMapsAPILoader', () => {
   });
 });
 
-test('passes parameters to GoogleMapsAPILoader', () => {
+test('passes parameters to setOptions', () => {
   render(<APIProvider apiKey={'apikey'} version={'version'}></APIProvider>);
 
-  const actual = apiLoadSpy.mock.lastCall[0];
+  const actual = setOptionsSpy.mock.lastCall[0];
   expect(actual).toMatchObject({key: 'apikey', v: 'version'});
 });
 
 test('uses default solutionChannel', () => {
   render(<APIProvider apiKey={'apikey'}></APIProvider>);
 
-  const actual = apiLoadSpy.mock.lastCall[0];
+  const actual = setOptionsSpy.mock.lastCall[0] as Record<string, unknown>;
   expect(actual.solutionChannel).toBe('GMP_visgl_rgmlibrary_v1_default');
 });
 
 test("doesn't set solutionChannel when specified as empty string", () => {
   render(<APIProvider apiKey={'apikey'} solutionChannel={''}></APIProvider>);
 
-  const actual = apiLoadSpy.mock.lastCall[0];
-  expect(actual).not.toHaveProperty('solutionChannel');
+  const actual = setOptionsSpy.mock.lastCall[0] as Record<string, unknown>;
+  expect(actual.solutionChannel).toBeUndefined();
 });
 
 test('renders inner components', async () => {
   const LoadingStatus = () => {
     const mapsLoaded = useApiIsLoaded();
-    return <span>{mapsLoaded ? 'loaded' : 'not loaded'}</span>;
+    return (
+      <span data-testid="status">{mapsLoaded ? 'loaded' : 'not loaded'}</span>
+    );
   };
 
   render(
@@ -123,11 +98,13 @@ test('renders inner components', async () => {
     </APIProvider>
   );
 
-  expect(screen.getByText('not loaded')).toBeInTheDocument();
+  // Should start as not loaded
+  expect(screen.getByTestId('status')).toHaveTextContent('not loaded');
 
-  await act(() => triggerMapsApiLoaded());
-
-  expect(screen.getByText('loaded')).toBeInTheDocument();
+  // Wait for async loading to complete
+  await waitFor(() => {
+    expect(screen.getByTestId('status')).toHaveTextContent('loaded');
+  });
 });
 
 test('provides context values', async () => {
@@ -144,13 +121,11 @@ test('provides context values', async () => {
   expect(actualContext.status).toEqual(APILoadingStatus.LOADING);
   expect(actualContext.mapInstances).toEqual({});
 
-  contextSpy.mockReset();
-  await act(() => triggerMapsApiLoaded());
-
-  expect(contextSpy).toHaveBeenCalled();
-
-  actualContext = contextSpy.mock.lastCall[0];
-  expect(actualContext.status).toBe(APILoadingStatus.LOADED);
+  // Wait for loading to complete
+  await waitFor(() => {
+    actualContext = contextSpy.mock.lastCall[0];
+    expect(actualContext.status).toBe(APILoadingStatus.LOADED);
+  });
 });
 
 test('map instance management: add, access and remove', async () => {
@@ -189,12 +164,17 @@ test('map instance management: add, access and remove', async () => {
 
 test('calls onError when loading the Google Maps JavaScript API fails', async () => {
   const onErrorMock = jest.fn();
+  const mockError = new Error('Loading failed');
+
+  // Make importLibrary reject for this test
+  const loader = await import('@googlemaps/js-api-loader');
+  (loader.importLibrary as jest.Mock).mockRejectedValueOnce(mockError);
 
   render(<APIProvider apiKey={'apikey'} onError={onErrorMock}></APIProvider>);
 
-  await act(() => triggerLoadingFailed());
-
-  expect(onErrorMock).toHaveBeenCalled();
+  await waitFor(() => {
+    expect(onErrorMock).toHaveBeenCalledWith(mockError);
+  });
 });
 
 describe('internalUsageAttributionIds', () => {

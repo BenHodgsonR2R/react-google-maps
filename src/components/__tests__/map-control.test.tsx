@@ -9,8 +9,6 @@ import {Map} from '../map';
 import {ControlPosition, MapControl} from '../map-control';
 import {waitForMockInstance} from './__utils__/wait-for-mock-instance';
 
-jest.mock('../../libraries/google-maps-api-loader');
-
 let wrapper: FunctionComponent<PropsWithChildren>;
 
 beforeEach(() => {

@@ -7,8 +7,6 @@ import {Map as GoogleMap} from '../map';
 import {Marker as GoogleMapsMarker} from '../marker';
 import MockedFunction = jest.MockedFunction;
 
-jest.mock('../../libraries/google-maps-api-loader');
-
 let wrapper: FunctionComponent<PropsWithChildren>;
 let createMarkerSpy: jest.Mock;
 

@@ -30,10 +30,6 @@ export function useMapsLibrary(name: string) {
 
   useEffect(() => {
     if (!apiIsLoaded || !ctx) return;
-
-    // Trigger loading the libraries via our proxy-method.
-    // The returned promise is ignored, since importLibrary will update loadedLibraries
-    // list in the context, triggering a re-render.
     void ctx.importLibrary(name);
   }, [apiIsLoaded, ctx, name]);
 

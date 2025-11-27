@@ -219,10 +219,8 @@ function useGoogleMapsApiLoader({
 
         if (cancelled) return;
 
-        if (libraries) {
-          for (const name of libraries) {
-            await importLibrary(name);
-          }
+        for (const name of libraries) {
+          await importLibrary(name);
         }
 
         if (cancelled) return;

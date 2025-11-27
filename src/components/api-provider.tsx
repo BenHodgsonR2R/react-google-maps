@@ -175,8 +175,8 @@ function useGoogleMapsApiLoader({
     [loadedLibraries]
   );
 
-  const options: APIOptions = useMemo(
-    () => ({
+  useEffect(() => {
+    const options: APIOptions = {
       key: apiKey,
       v: version,
       region,
@@ -188,27 +188,25 @@ function useGoogleMapsApiLoader({
         solutionChannel === ''
           ? undefined
           : solutionChannel || DEFAULT_SOLUTION_CHANNEL
-    }),
-    [
-      apiKey,
-      version,
-      region,
-      language,
-      authReferrerPolicy,
-      libraries,
-      channel,
-      solutionChannel
-    ]
-  );
+    };
 
-  useEffect(() => {
     const optionsChanged =
       JSON.stringify(prevOptions) !== JSON.stringify(options);
     if (optionsChanged) {
       setGoogleMapsOptions(options);
       setPrevOptions(options);
     }
-  }, [options, prevOptions]);
+  }, [
+    apiKey,
+    version,
+    region,
+    language,
+    authReferrerPolicy,
+    libraries,
+    channel,
+    solutionChannel,
+    prevOptions
+  ]);
 
   useEffect(() => {
     let cancelled = false;
